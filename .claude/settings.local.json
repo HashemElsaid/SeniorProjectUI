@@ -6,7 +6,8 @@
       "Bash(pip install:*)",
       "Bash(npm run:*)",
       "Bash(curl -s http://localhost:5174)",
-      "WebFetch(domain:syniot.me)"
+      "WebFetch(domain:syniot.me)",
+      "Bash(npx tsc *)"
     ]
   }
 }

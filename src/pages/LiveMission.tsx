@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import DroneSimulationView from "../components/DroneSimulationView";
 import Card from "../ui/Card";
 import { colors, radius, spacing, typography } from "../ui/tokens";
-import type { Aircraft } from "../data/fleetStore";
+import type { Aircraft, LiveDetection } from "../data/fleetStore";
 
 type Telemetry = {
     battery: number;
@@ -15,14 +15,8 @@ type Telemetry = {
     status: "Scanning" | "Holding" | "Returning" | "Landed";
 };
 
-type Detection = {
-    id: string;
-    label: "Crack" | "Dent" | "Corrosion";
-    severity: "Low" | "Medium" | "High";
-    confidence: number;
-    zone: string;
-    timestamp: string;
-};
+// Use the shared LiveDetection type from fleetStore
+type Detection = LiveDetection;
 
 type MissionEvent = {
     id: string;
@@ -31,7 +25,26 @@ type MissionEvent = {
     severity: "Info" | "Warning" | "Critical";
 };
 
-export default function LiveMission({ aircraft }: { aircraft: Aircraft }) {
+interface LiveMissionProps {
+    aircraft: Aircraft;
+    pilotName?: string;
+    onMissionComplete?: (detections: LiveDetection[], seconds: number) => void;
+    /** Called when the pilot aborts the mission mid-flight */
+    onAbort?: () => void;
+}
+
+export default function LiveMission({ aircraft, pilotName: _pilotName = "Unknown Pilot", onMissionComplete, onAbort }: LiveMissionProps) {
+    const missionCompleteRef = useRef(false); // fire callback only once
+
+    // Abort confirmation state — two clicks within 4 s required
+    const [abortPending, setAbortPending] = useState(false);
+    const abortTimerRef = useRef<number | null>(null);
+
+    // Cleanup abort timer on unmount
+    useEffect(() => () => {
+        if (abortTimerRef.current) window.clearTimeout(abortTimerRef.current);
+    }, []);
+
     const [telemetry, setTelemetry] = useState<Telemetry>({
         battery: 100,
         altitude: 4.8,   // realistic: close-range inspection altitude 3–6 m
@@ -45,24 +58,8 @@ export default function LiveMission({ aircraft }: { aircraft: Aircraft }) {
     const [missionTime, setMissionTime] = useState<number>(0);
     const [paused, setPaused] = useState<boolean>(false);
 
-    const [detections, setDetections] = useState<Detection[]>([
-        {
-            id: "D-104",
-            label: "Crack",
-            severity: "High",
-            confidence: 0.91,
-            zone: "Forward fuselage",
-            timestamp: nowTime(),
-        },
-        {
-            id: "D-103",
-            label: "Dent",
-            severity: "Medium",
-            confidence: 0.82,
-            zone: "Wing root",
-            timestamp: nowTime(),
-        },
-    ]);
+    // Start empty — detections are discovered progressively as the drone scans
+    const [detections, setDetections] = useState<Detection[]>([]);
 
     const [events, setEvents] = useState<MissionEvent[]>([
         { id: "E-1", time: nowTime(), message: "Mission started.", severity: "Info" },
@@ -119,7 +116,7 @@ export default function LiveMission({ aircraft }: { aircraft: Aircraft }) {
     }
 
     function returnToHome() {
-        if (telemetry.status === "Landed") return;
+        if (telemetry.status === "Landed" || telemetry.status === "Returning") return;
 
         homeRef.current = {
             lat: +(telemetry.lat - 0.0012).toFixed(6),
@@ -127,11 +124,23 @@ export default function LiveMission({ aircraft }: { aircraft: Aircraft }) {
         };
 
         setPaused(false);
-        setTelemetry((curr) => ({
-            ...curr,
-            status: "Returning",
-        }));
-        pushEvent("Return-to-home initiated.", "Warning");
+        setTelemetry((curr) => ({ ...curr, status: "Returning" }));
+        pushEvent("Return-to-home initiated. Drone landing automatically.", "Warning");
+    }
+
+    function handleAbortClick() {
+        if (abortPending) {
+            // Second click — confirmed
+            if (abortTimerRef.current) window.clearTimeout(abortTimerRef.current);
+            pushEvent("Mission aborted by pilot.", "Critical");
+            // Small delay so the event renders before the component unmounts
+            window.setTimeout(() => onAbort?.(), 400);
+        } else {
+            // First click — arm confirmation
+            setAbortPending(true);
+            pushEvent("Abort requested — click 'Confirm Abort' within 4 s to terminate.", "Critical");
+            abortTimerRef.current = window.setTimeout(() => setAbortPending(false), 4000);
+        }
     }
 
     useEffect(() => {
@@ -166,6 +175,17 @@ export default function LiveMission({ aircraft }: { aircraft: Aircraft }) {
                     if (arrived && nextAlt <= 0.5) {
                         pushEvent("Drone landed at home position.", "Info");
                         homeRef.current = null;
+                        // Fire mission-complete callback (once only)
+                        if (!missionCompleteRef.current && onMissionComplete) {
+                            missionCompleteRef.current = true;
+                            // Small delay so "Landed" renders first
+                            window.setTimeout(() => {
+                                setDetections((d) => {
+                                    onMissionComplete(d, missionTime);
+                                    return d;
+                                });
+                            }, 1800);
+                        }
                         return {
                             ...prev,
                             lat: +nextLat.toFixed(6),
@@ -261,12 +281,33 @@ export default function LiveMission({ aircraft }: { aircraft: Aircraft }) {
                     <div style={{ height: spacing.md }} />
 
                     <div style={buttonRow}>
-                        <button type="button" style={paused ? btnPrimary : btnSecondary} onClick={togglePause}>
+                        {/* Hold / Resume — disabled once drone is no longer scanning */}
+                        <button
+                            type="button"
+                            style={paused ? btnPrimary : btnSecondary}
+                            onClick={togglePause}
+                            disabled={telemetry.status === "Returning" || telemetry.status === "Landed"}
+                        >
                             {paused ? "Resume Scan" : "Hold Position"}
                         </button>
 
-                        <button type="button" style={btnWarn} onClick={returnToHome}>
-                            Return to Home
+                        {/* Return Home — triggers normal landing + mission complete */}
+                        <button
+                            type="button"
+                            style={btnWarn}
+                            onClick={returnToHome}
+                            disabled={telemetry.status === "Returning" || telemetry.status === "Landed"}
+                        >
+                            Return Home
+                        </button>
+
+                        {/* Abort — two-step confirmation, always available */}
+                        <button
+                            type="button"
+                            style={abortPending ? btnAbortArmed : btnAbort}
+                            onClick={handleAbortClick}
+                        >
+                            {abortPending ? "Confirm Abort?" : "Abort Mission"}
                         </button>
                     </div>
                 </Card>
@@ -533,7 +574,7 @@ const sectionSub: React.CSSProperties = {
 
 const buttonRow: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+    gridTemplateColumns: "1fr 1fr 1fr",
     gap: spacing.md,
 };
 
@@ -627,8 +668,40 @@ const btnWarn: React.CSSProperties = {
     fontFamily: typography.fontFamily,
 };
 
+// Abort — idle state (subtle red outline)
+const btnAbort: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,92,115,0.35)",
+    background: "rgba(255,92,115,0.08)",
+    color: colors.danger,
+    cursor: "pointer",
+    fontWeight: typography.weight.bold,
+    fontFamily: typography.fontFamily,
+};
+
+// Abort — armed / awaiting confirmation (bright red, pulsing)
+const btnAbortArmed: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,92,115,0.75)",
+    background: "rgba(255,92,115,0.25)",
+    color: "#ffffff",
+    cursor: "pointer",
+    fontWeight: typography.weight.bold,
+    fontFamily: typography.fontFamily,
+    animation: "abortPulse 0.7s ease-in-out infinite",
+};
+
 const responsiveCss = `
   @media (max-width: 1100px) {
     .lm-grid { grid-template-columns: 1fr !important; }
+  }
+  button:disabled { opacity: 0.38 !important; cursor: not-allowed !important; }
+  @keyframes abortPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,92,115,0); }
+    50%       { box-shadow: 0 0 0 6px rgba(255,92,115,0.28); }
   }
 `;

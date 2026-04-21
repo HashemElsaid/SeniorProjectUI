@@ -102,6 +102,9 @@ export default function DroneSimulationView({ telemetry, detections, paused = fa
   const telRef            = useRef(telemetry);
   const detRef            = useRef(detections);
   const pausedRef         = useRef(paused);
+  // Progressive reveal: only show a detection marker once the drone has
+  // orbited past the angular position of that zone on the aircraft.
+  const revealedRef       = useRef<Set<string>>(new Set());
 
   useEffect(() => { telRef.current = telemetry; }, [telemetry]);
   useEffect(() => { detRef.current = detections; }, [detections]);
@@ -249,9 +252,9 @@ export default function DroneSimulationView({ telemetry, detections, paused = fa
       ctx.restore();
     }
 
-    // ─── Detection markers — all clamped inside aircraft ────────────────────
+    // ─── Detection markers — only revealed ones ──────────────────────────────
     function drawMarkers(t: number) {
-      detRef.current.slice(0, 5).forEach((d, i) => {
+      detRef.current.filter((d) => revealedRef.current.has(d.id)).slice(0, 5).forEach((d, i) => {
         const [px, py] = getZonePos(d.zone);
         const [r,g,b]  = sevRGB(d.severity);
         const pulse    = Math.sin(t * 3.2 + i * 1.4) * 0.5 + 0.5;
@@ -433,7 +436,7 @@ export default function DroneSimulationView({ telemetry, detections, paused = fa
       ctx.font = "bold 9px monospace";
       ctx.fillStyle = W(0.42);
       ctx.textAlign = "right";
-      ctx.fillText(`📷 ${String(photoRef.current).padStart(3,"0")} frames`, CANVAS_W-10, 18);
+      ctx.fillText(`CAM: ${String(photoRef.current).padStart(3,"0")} frames`, CANVAS_W-10, 18);
 
       // Bottom-left: lat/lng
       ctx.font = "9px monospace";
@@ -537,6 +540,20 @@ export default function DroneSimulationView({ telemetry, detections, paused = fa
           if (lastStopRef.current >= 0 && nearestDist > APPROACH_ZONE * 2) {
             lastStopRef.current = -1;
           }
+
+          // ── Progressive detection reveal ─────────────────────────────────
+          // Reveal a detection marker when the drone's orbit angle passes
+          // near the angular projection of that zone onto the orbit ellipse.
+          const currentNorm = ((orbitRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+          detRef.current.forEach((d) => {
+            if (!revealedRef.current.has(d.id)) {
+              const [zx, zy] = getZonePos(d.zone);
+              const zoneAngle = ((Math.atan2((zy - CY) / 120, (zx - CX) / 162)) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+              let diff = Math.abs(currentNorm - zoneAngle);
+              if (diff > Math.PI) diff = Math.PI * 2 - diff;
+              if (diff < 0.35) revealedRef.current.add(d.id);
+            }
+          });
 
           [dx, dy] = getDroneXY(orbitRef.current);
         }

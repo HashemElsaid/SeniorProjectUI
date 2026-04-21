@@ -177,13 +177,13 @@ export default function LandingPage({ onSignIn }: Props) {
             Our streamlined workflow replaces hours of manual inspection with a fully automated, data-driven process.
           </p>
           <div className="steps-row" style={stepsRow}>
-            <Step num="01" title="Deploy the Drone" icon="🚁"
-              desc="The autonomous drone launches and follows a pre-programmed flight path around the aircraft, capturing continuous high-resolution video from all angles." />
+            <Step num="01" title="Deploy the Drone"
+              desc="The autonomous drone launches and follows a pre-programmed flight path around the aircraft, capturing high-resolution imagery at 12 inspection waypoints." />
             <div style={stepArrow} className="step-arrow">→</div>
-            <Step num="02" title="AI Detects Anomalies" icon="🧠"
-              desc="Onboard and ground-station ML models analyze every frame in real time. Cracks, dents, and corrosion are classified with bounding boxes and confidence scores." />
+            <Step num="02" title="AI Detects Anomalies"
+              desc="Captured images are processed by the YOLOv8 model. Cracks, dents, and corrosion are classified with bounding boxes, confidence scores, and zone labels." />
             <div style={stepArrow} className="step-arrow">→</div>
-            <Step num="03" title="Review & Export Report" icon="📋"
+            <Step num="03" title="Review & Export Report"
               desc="The maintenance engineer reviews flagged findings in the Ground Station Console, adds notes, validates each finding, and exports a complete inspection report." />
           </div>
         </div>
@@ -362,10 +362,9 @@ function FeatureCard({ icon, title, desc, accent }: { icon: string; title: strin
   );
 }
 
-function Step({ num, title, desc, icon }: { num: string; title: string; desc: string; icon: string }) {
+function Step({ num, title, desc }: { num: string; title: string; desc: string }) {
   return (
     <div style={{ flex: 1, minWidth: 200, textAlign: "center", padding: "0 12px" }}>
-      <div style={{ fontSize: 32, marginBottom: 12 }}>{icon}</div>
       <div style={{
         display: "inline-block", fontSize: 11, fontWeight: 800, letterSpacing: "1.5px",
         color: colors.primary, background: "rgba(59,130,246,0.12)",

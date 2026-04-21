@@ -3,6 +3,8 @@ import React, { useState } from "react";
 import {
   getAircraftFlights,
   getZoneRecurrences,
+  getFlightByCode,
+  getAircraftByCode,
 } from "../data/fleetStore";
 import type {
   Aircraft,
@@ -18,9 +20,26 @@ interface Props {
 }
 
 export default function FlightHistory({ aircraft }: Props) {
-  const flights = getAircraftFlights(aircraft.id); // newest first
+  // Active aircraft flights
+  const flights = getAircraftFlights(aircraft.id);
   const recurrences = getZoneRecurrences(aircraft.id);
   const [selectedFlightId, setSelectedFlightId] = useState<string>(flights[0]?.id ?? "");
+
+  // Access-code lookup
+  const [codeInput, setCodeInput] = useState("");
+  const [codeError, setCodeError] = useState("");
+  const [codeResult, setCodeResult] = useState<{ flight: FlightRecord; aircraft: Aircraft } | null>(null);
+
+  function lookupCode() {
+    const trimmed = codeInput.trim();
+    if (!trimmed) return;
+    const flight = getFlightByCode(trimmed);
+    if (!flight) { setCodeError("No inspection found with this code. Please check and try again."); setCodeResult(null); return; }
+    const ac = getAircraftByCode(trimmed);
+    if (!ac) { setCodeError("Aircraft data not found."); setCodeResult(null); return; }
+    setCodeError("");
+    setCodeResult({ flight, aircraft: ac });
+  }
 
   const selectedFlight = flights.find((f) => f.id === selectedFlightId) ?? null;
 
@@ -48,6 +67,38 @@ export default function FlightHistory({ aircraft }: Props) {
         </div>
       </div>
 
+      {/* ── Access Code Lookup ── */}
+      <div style={codeBox}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: colors.textPrimary, marginBottom: 4 }}>
+          Access Code Lookup
+        </div>
+        <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 10 }}>
+          Enter an access code shared by a Drone Pilot to view their inspection report
+        </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <input
+            value={codeInput}
+            onChange={(e) => { setCodeInput(e.target.value.toUpperCase()); setCodeError(""); }}
+            placeholder="e.g. EQ1V5X"
+            maxLength={6}
+            style={codeInput_}
+          />
+          <button type="button" onClick={lookupCode} style={lookupBtn}>Look Up</button>
+          {codeResult && <button type="button" onClick={() => { setCodeResult(null); setCodeInput(""); }} style={clearBtn}>✕ Clear</button>}
+        </div>
+        {codeError && <div style={{ marginTop: 8, fontSize: 12, color: colors.danger }}>{codeError}</div>}
+      </div>
+
+      {/* ── Code result ── */}
+      {codeResult && (
+        <div style={{ padding: spacing.lg, borderRadius: radius.lg, border: "1px solid rgba(59,130,246,0.30)", background: "rgba(59,130,246,0.06)" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(59,130,246,0.85)", marginBottom: 12 }}>
+            Inspection report found — {codeResult.aircraft.registration} ({codeResult.aircraft.model})
+          </div>
+          <FlightDetail flight={codeResult.flight} aircraft={codeResult.aircraft} />
+        </div>
+      )}
+
       {/* ── Zone Recurrence Analysis ── */}
       {recurrences.length > 0 && (
         <RecurrencePanel recurrences={recurrences} />
@@ -73,7 +124,7 @@ export default function FlightHistory({ aircraft }: Props) {
         {/* Right: Findings for selected flight */}
         <div style={rightPanel}>
           {selectedFlight ? (
-            <FlightDetail flight={selectedFlight} />
+            <FlightDetail flight={selectedFlight} aircraft={aircraft} />
           ) : (
             <div style={{ color: colors.textSecondary, padding: spacing.lg }}>
               Select an inspection to view its findings.
@@ -265,7 +316,40 @@ function FlightRow({
   );
 }
 
-function FlightDetail({ flight }: { flight: FlightRecord }) {
+function FlightDetail({ flight, aircraft }: { flight: FlightRecord; aircraft: Aircraft }) {
+  const [copied, setCopied] = useState(false);
+
+  function copyCode() {
+    void navigator.clipboard.writeText(flight.accessCode);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  }
+
+  function exportJSON() {
+    const data = { aircraft: { registration: aircraft.registration, model: aircraft.model }, flight };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${aircraft.registration}_${flight.id}.json`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportCSV() {
+    const hdr = ["ID", "Type", "Zone", "Severity", "Confidence", "Timestamp", "Resolved", "Notes"];
+    const rows = flight.findings.map((f) => [
+      f.id, f.type, f.zone, f.severity,
+      `${Math.round(f.confidence * 100)}%`, f.timestamp,
+      f.resolved ? "Yes" : "No",
+      `"${f.notes.replace(/"/g, '""')}"`,
+    ]);
+    const csv = [hdr, ...rows].map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${aircraft.registration}_${flight.id}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div
       style={{
@@ -308,6 +392,17 @@ function FlightDetail({ flight }: { flight: FlightRecord }) {
             value={String(flight.findings.filter((f) => f.reoccurrence).length)}
             highlight={flight.findings.some((f) => f.reoccurrence)}
           />
+        </div>
+
+        {/* Access code + export row */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: spacing.md, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 12px", borderRadius: radius.md, background: "rgba(59,130,246,0.08)", border: "1px solid rgba(59,130,246,0.22)" }}>
+            <span style={{ fontSize: 11, color: "rgba(59,130,246,0.80)", fontWeight: 700 }}>CODE</span>
+            <span style={{ fontFamily: typography.monoFamily, fontWeight: 700, color: colors.textPrimary, letterSpacing: "2px", fontSize: 14 }}>{flight.accessCode}</span>
+            <button type="button" onClick={copyCode} style={inlineCopyBtn}>{copied ? "✓" : "Copy"}</button>
+          </div>
+          <button type="button" onClick={exportJSON} style={exportBtnStyle}>⬇ JSON</button>
+          <button type="button" onClick={exportCSV} style={exportBtnStyle}>⬇ CSV</button>
         </div>
       </div>
 
@@ -628,4 +723,78 @@ const dot: React.CSSProperties = {
   borderRadius: "50%",
   display: "inline-block",
   flexShrink: 0,
+};
+
+// ── Access-code lookup styles ─────────────────────────────────────────────────
+
+const codeBox: React.CSSProperties = {
+  padding: spacing.lg,
+  borderRadius: radius.lg,
+  border: `1px solid ${colors.border}`,
+  background: "rgba(255,255,255,0.02)",
+};
+
+// eslint-disable-next-line @typescript-eslint/naming-convention
+const codeInput_: React.CSSProperties = {
+  height: 38,
+  width: 130,
+  borderRadius: 10,
+  border: `1px solid ${colors.border}`,
+  background: colors.background,
+  color: colors.textPrimary,
+  padding: "0 12px",
+  fontSize: 15,
+  fontFamily: typography.monoFamily,
+  fontWeight: 700,
+  letterSpacing: "3px",
+  outline: "none",
+};
+
+const lookupBtn: React.CSSProperties = {
+  height: 38,
+  padding: "0 18px",
+  borderRadius: 10,
+  border: "1px solid rgba(59,130,246,0.40)",
+  background: "rgba(59,130,246,0.18)",
+  color: colors.textPrimary,
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 700,
+  fontFamily: typography.fontFamily,
+};
+
+const clearBtn: React.CSSProperties = {
+  height: 38,
+  padding: "0 14px",
+  borderRadius: 10,
+  border: `1px solid ${colors.border}`,
+  background: "rgba(255,255,255,0.04)",
+  color: colors.textSecondary,
+  cursor: "pointer",
+  fontSize: 12,
+  fontFamily: typography.fontFamily,
+};
+
+const inlineCopyBtn: React.CSSProperties = {
+  padding: "2px 8px",
+  borderRadius: 6,
+  border: "1px solid rgba(59,130,246,0.30)",
+  background: "rgba(59,130,246,0.12)",
+  color: colors.primary,
+  fontSize: 11,
+  cursor: "pointer",
+  fontFamily: typography.fontFamily,
+};
+
+const exportBtnStyle: React.CSSProperties = {
+  height: 34,
+  padding: "0 14px",
+  borderRadius: 8,
+  border: `1px solid ${colors.border}`,
+  background: "rgba(255,255,255,0.04)",
+  color: colors.textSecondary,
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 600,
+  fontFamily: typography.fontFamily,
 };
