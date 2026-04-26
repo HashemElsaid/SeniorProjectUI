@@ -24,7 +24,7 @@ const CHECKS: CheckItem[] = [
   { label: "GPS & positioning",     value: "12 satellites locked",     status: "ok" },
   { label: "Image storage",         value: "64 GB — Available",        status: "ok" },
   { label: "Comms link",            value: "Encrypted — 28 dBm",       status: "ok" },
-  { label: "AI model (YOLOv8)",     value: "v2.4.1 — Loaded",          status: "ok" },
+  { label: "AI model (YOLOv11)",    value: "v1.0.0 — Loaded",          status: "ok" },
   { label: "Aircraft documentation",value: "MSN retrieved",            status: "ok" },
 ];
 
