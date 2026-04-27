@@ -42,8 +42,12 @@ export default function DetectionView({ aircraft, detections }: Props) {
     );
   }
 
-  const selected = detections[selectedIdx];
-  const detId    = `D-${String(selectedIdx + 1).padStart(3, "0")}`;
+  const selected     = detections[selectedIdx];
+  const detId        = selected.id;
+  // Other detections captured in the same photo
+  const coDetections = selected.imageFile
+    ? detections.filter((d) => d.imageFile === selected.imageFile && d.id !== selected.id)
+    : [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: spacing.lg }}>
@@ -71,7 +75,7 @@ export default function DetectionView({ aircraft, detections }: Props) {
           <div style={listHeader}>DETECTIONS</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {detections.map((d, i) => {
-              const id     = `D-${String(i + 1).padStart(3, "0")}`;
+              const id     = d.id;
               const active = i === selectedIdx;
               const sev    = sevColors(d.severity);
               return (
@@ -151,6 +155,37 @@ export default function DetectionView({ aircraft, detections }: Props) {
               <MetaBox label="Zone"         value={selected.zone} />
               <MetaBox label="Timestamp"    value={selected.timestamp} mono />
             </div>
+
+            {/* Co-detections: other findings captured in the same frame */}
+            {coDetections.length > 0 && (
+              <div style={{ marginTop: spacing.md }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.38)", letterSpacing: "0.8px", marginBottom: 8 }}>
+                  ALSO DETECTED IN THIS FRAME
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {coDetections.map((co) => {
+                    const sev = sevColors(co.severity);
+                    return (
+                      <div key={co.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 8, background: sev.bg, border: `1px solid ${sev.border}` }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontFamily: typography.monoFamily, fontSize: 12, fontWeight: 700, color: sev.text }}>{co.id}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: colors.textPrimary }}>{co.label}</span>
+                          <span style={{ fontSize: 12, color: colors.textSecondary }}>{co.zone}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 12, fontFamily: typography.monoFamily, color: colors.textSecondary }}>{Math.round(co.confidence * 100)}%</span>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 999, border: `1px solid ${sev.border}`, background: "rgba(0,0,0,0.25)", fontSize: 11, fontWeight: 600, color: sev.text }}>
+                            <span style={{ width: 5, height: 5, borderRadius: "50%", background: sev.dot, display: "inline-block" }} />
+                            {co.severity}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div style={linkNote}>
               Detection {detId} is traceable in Results Review and Flight History.
             </div>
@@ -175,14 +210,14 @@ function CameraFrame({ detection, detIdx }: { detection: LiveDetection; detIdx: 
   if (detection.imageFile && !imgError) {
     const sev = detection.severity;
     const sevColor = sev === "High" ? "#ff5c73" : sev === "Medium" ? "#f7c948" : "#3ddc97";
-    const detId = `D-${String(detIdx + 1).padStart(3, "0")}`;
+    const detId = detection.id;
     return (
-      <div style={{ position: "relative", width: "100%", lineHeight: 0 }}>
+      <div style={{ position: "relative", width: "100%", lineHeight: 0, maxHeight: 400, overflow: "hidden", background: "#0c1422", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <img
           src={`/predictions/${detection.imageFile}`}
           alt={`YOLOv11 detection ${detId}`}
           onError={() => setImgError(true)}
-          style={{ width: "100%", height: "auto", display: "block", borderRadius: 0 }}
+          style={{ width: "100%", maxHeight: 400, objectFit: "contain", display: "block" }}
         />
         {/* HUD overlay — detection ID + confidence badge */}
         <div style={{
@@ -238,7 +273,7 @@ function CameraCanvas({ detection, detIdx }: { detection: LiveDetection; detIdx:
     const sev             = detection.severity;
     const [r, g, b]       = sev === "High" ? [255, 92, 115] : sev === "Medium" ? [247, 201, 72] : [61, 220, 151];
     const box             = getBoxForZone(detection.zone, W, H);
-    const detId           = `D-${String(detIdx + 1).padStart(3, "0")}`;
+    const detId           = detection.id;
     let t                 = 0;
 
     function draw() {

@@ -17,7 +17,7 @@ import { FLEET, saveFlightRecord, generateAccessCode } from "./data/fleetStore";
 import type { LiveDetection, HistoricalFinding, FlightRecord } from "./data/fleetStore";
 import { getCurrentUser, logoutUser } from "./data/authStore";
 import type { User } from "./data/authStore";
-import { DEMO_DETECTIONS } from "./data/demoDetections";
+import { getDetectionsForAircraft } from "./data/demoDetections";
 
 type AppState = "landing" | "login" | "register" | "app";
 
@@ -97,7 +97,7 @@ export default function App() {
     setSelectedAircraftId(aircraftId);
     setMissions((prev) => ({
       ...prev,
-      [aircraftId]: { phase: "briefing", detections: DEMO_DETECTIONS },
+      [aircraftId]: { phase: "briefing", detections: getDetectionsForAircraft(aircraftId) },
     }));
     setPage("briefing");
   }
@@ -108,8 +108,8 @@ export default function App() {
     const accessCode = generateAccessCode();
     const today      = new Date().toISOString().slice(0, 10);
 
-    // Build findings from the demo detections already loaded
-    const findings: HistoricalFinding[] = DEMO_DETECTIONS.map((d, i) => ({
+    // Build findings from the aircraft-specific detections already loaded
+    const findings: HistoricalFinding[] = getDetectionsForAircraft(selectedAircraftId).map((d, i) => ({
       id:         d.id ?? `fnd-${flightId}-${i}`,
       flightId,
       aircraftId: selectedAircraftId,
@@ -292,10 +292,10 @@ export default function App() {
           />
         )}
 
-        {page === "detection" && (user.role === "Analyst" || currentMission !== undefined) && (
+        {page === "detection" && (
           <DetectionView
             aircraft={selectedAircraft}
-            detections={currentMission?.detections ?? DEMO_DETECTIONS}
+            detections={currentMission?.detections ?? getDetectionsForAircraft(selectedAircraftId)}
           />
         )}
 

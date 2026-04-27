@@ -50,8 +50,8 @@ const ROLE_COLOR: Record<User["role"], string> = {
 function isLocked(page: AppPage, phase: "idle" | "briefing" | "live" | "complete", role: User["role"]): boolean {
   // Live Tracker: only unlocked once the drone has actually been launched
   if (page === "live")      return phase !== "live";
-  // Detection View: Analysts always have access; others need an active mission
-  if (page === "detection") return role === "Analyst" ? false : phase === "idle";
+  // Detection View: always accessible — shows per-aircraft pre-loaded findings
+  if (page === "detection") return false;
   return false;
 }
 
