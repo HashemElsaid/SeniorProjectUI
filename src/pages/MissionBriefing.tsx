@@ -24,7 +24,7 @@ const CHECKS: CheckItem[] = [
   { label: "GPS & positioning", value: "12 satellites locked", status: "ok" },
   { label: "Image storage", value: "64 GB — Available", status: "ok" },
   { label: "Comms link", value: "Encrypted — 28 dBm", status: "ok" },
-  { label: "AI model (YOLOv11)", value: "v1.0.0 — Loaded", status: "ok" },
+  { label: "Image transfer protocol", value: "USB / Wi-Fi — Ready", status: "ok" },
   { label: "Aircraft documentation", value: "MSN retrieved", status: "ok" },
 ];
 
@@ -84,9 +84,10 @@ export default function MissionBriefing({ aircraft, onLaunch, onCancel }: Props)
             </div>
             <div style={{ fontSize: 12, color: colors.textSecondary, lineHeight: 1.6 }}>
               Drone orbits the aircraft fuselage at 4–6 m altitude, capturing
-              high-resolution images at 12 inspection waypoints. Images are processed
-              offline by the YOLOv8 model to detect cracks, dents, and corrosion.
-              Detection results are available in Detection View after landing.
+              high-resolution images at 12 inspection waypoints. After landing,
+              images are transferred and analysed offline by YOLOv11 to detect
+              cracks, dents, corrosion, and missing rivets. Results are available
+              in Detection View once processing is complete.
             </div>
           </div>
         </Card>

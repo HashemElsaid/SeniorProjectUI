@@ -11,18 +11,8 @@ interface Telemetry {
   status: "Scanning" | "Holding" | "Returning" | "Landed";
 }
 
-interface Detection {
-  id: string;
-  label: "Crack" | "Dent" | "Corrosion" | "Scratch" | "Missing Rivet" | "Paint Damage";
-  severity: "Low" | "Medium" | "High";
-  confidence: number;
-  zone: string;
-  timestamp: string;
-}
-
 interface Props {
   telemetry: Telemetry;
-  detections: Detection[];
   paused?: boolean;
 }
 
@@ -30,42 +20,6 @@ const CANVAS_W = 660;
 const CANVAS_H = 360;
 const CX = CANVAS_W / 2;  // 330
 const CY = CANVAS_H / 2;  // 180
-
-// ─── All zone positions are clamped INSIDE the aircraft body ─────────────────
-// Fuselage body: x [212,450], y [165,195]
-// Left wing polygon: roughly x[298,372], y[42,165]
-// Right wing polygon: roughly x[298,372], y[195,318]
-// Left engine ellipse: center (338,95), rx=27, ry=9
-// Right engine ellipse: center (338,265), rx=27, ry=9
-const ZONE_POS: Record<string, [number, number]> = {
-  "forward fuselage":      [420, 180],
-  "aft fuselage":          [245, 180],
-  "wing root":             [345, 155],
-  "wing root (left)":      [330, 130],
-  "wing root (right)":     [330, 228],
-  "engine cowling":        [335, 95],
-  "engine cowling (1)":    [335, 95],
-  "engine cowling (2)":    [335, 265],
-  "engine cowling (3)":    [335, 95],
-  "engine cowling (4)":    [335, 265],
-  "nose section":          [435, 180],
-  "tail cone":             [222, 180],
-  "belly fairing":         [340, 180],
-  "horizontal stabilizer": [225, 180],
-  "vertical stabilizer":   [225, 180],
-  "landing gear bay":      [335, 180],
-};
-
-function getZonePos(zone: string): [number, number] {
-  const key = zone.toLowerCase();
-  // Exact match first
-  if (ZONE_POS[key]) return ZONE_POS[key];
-  // Partial match — longest key that zone string contains
-  const match = Object.keys(ZONE_POS)
-    .filter((k) => key.includes(k))
-    .sort((a, b) => b.length - a.length)[0];
-  return match ? ZONE_POS[match] : [CX, CY];
-}
 
 // Orbit ellipse — drone flies AROUND the aircraft perimeter
 function getDroneXY(angle: number): [number, number] {
@@ -89,25 +43,20 @@ const STOP_THRESHOLD = 0.030;  // rad — snap to stop within this
 const APPROACH_ZONE  = 0.12;   // rad — start slowing within this
 const PHOTO_HOLD     = 1.4;    // seconds paused at each stop
 
-export default function DroneSimulationView({ telemetry, detections, paused = false }: Props) {
-  const canvasRef         = useRef<HTMLCanvasElement>(null);
-  const rafRef            = useRef(0);
-  const timeRef           = useRef(0);
-  const orbitRef          = useRef(0.26);   // start NOT at a waypoint
-  const pauseRef          = useRef(0);      // countdown seconds
-  const lastStopRef       = useRef(-1);     // index of last triggered stop
-  const shutterRef        = useRef(0);      // 0–1 flash brightness
-  const photoRef          = useRef(0);      // total photos taken
-  const trailRef          = useRef<[number, number][]>([]);
-  const telRef            = useRef(telemetry);
-  const detRef            = useRef(detections);
-  const pausedRef         = useRef(paused);
-  // Progressive reveal: only show a detection marker once the drone has
-  // orbited past the angular position of that zone on the aircraft.
-  const revealedRef       = useRef<Set<string>>(new Set());
+export default function DroneSimulationView({ telemetry, paused = false }: Props) {
+  const canvasRef     = useRef<HTMLCanvasElement>(null);
+  const rafRef        = useRef(0);
+  const timeRef       = useRef(0);
+  const orbitRef      = useRef(0.26);   // start NOT at a waypoint
+  const pauseRef      = useRef(0);      // countdown seconds
+  const lastStopRef   = useRef(-1);     // index of last triggered stop
+  const shutterRef    = useRef(0);      // 0–1 flash brightness
+  const photoRef      = useRef(0);      // total photos taken
+  const trailRef      = useRef<[number, number][]>([]);
+  const telRef        = useRef(telemetry);
+  const pausedRef     = useRef(paused);
 
   useEffect(() => { telRef.current = telemetry; }, [telemetry]);
-  useEffect(() => { detRef.current = detections; }, [detections]);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
 
   useEffect(() => {
@@ -119,8 +68,6 @@ export default function DroneSimulationView({ telemetry, detections, paused = fa
     // ─── Color helpers ───────────────────────────────────────────────────────
     const C  = (a: number) => `rgba(56,189,248,${a})`;   // cyan
     const W  = (a: number) => `rgba(255,255,255,${a})`;  // white
-    const sevRGB = (s: string): [number,number,number] =>
-      s === "High" ? [255,92,115] : s === "Medium" ? [247,201,72] : [61,220,151];
 
     // ─── Background ─────────────────────────────────────────────────────────
     function drawBg() {
@@ -250,42 +197,6 @@ export default function DroneSimulationView({ telemetry, detections, paused = fa
       );
 
       ctx.restore();
-    }
-
-    // ─── Detection markers — only revealed ones ──────────────────────────────
-    function drawMarkers(t: number) {
-      detRef.current.filter((d) => revealedRef.current.has(d.id)).slice(0, 5).forEach((d, i) => {
-        const [px, py] = getZonePos(d.zone);
-        const [r,g,b]  = sevRGB(d.severity);
-        const pulse    = Math.sin(t * 3.2 + i * 1.4) * 0.5 + 0.5;
-
-        // Expanding ring
-        ctx.beginPath();
-        ctx.arc(px, py, 6 + pulse*10, 0, Math.PI*2);
-        ctx.strokeStyle = `rgba(${r},${g},${b},${0.5 - pulse*0.3})`;
-        ctx.lineWidth = 1.5; ctx.stroke();
-
-        // Inner ring
-        ctx.beginPath();
-        ctx.arc(px, py, 3 + pulse*3, 0, Math.PI*2);
-        ctx.strokeStyle = `rgba(${r},${g},${b},0.4)`;
-        ctx.lineWidth = 1; ctx.stroke();
-
-        // Core dot
-        ctx.beginPath();
-        ctx.arc(px, py, 3.5, 0, Math.PI*2);
-        ctx.fillStyle   = `rgba(${r},${g},${b},0.95)`;
-        ctx.shadowColor = `rgba(${r},${g},${b},0.8)`;
-        ctx.shadowBlur  = 8;
-        ctx.fill();
-        ctx.shadowBlur  = 0;
-
-        // Label — nudge up so it doesn't overlap dot
-        ctx.font      = "bold 9px monospace";
-        ctx.fillStyle = `rgba(${r},${g},${b},0.90)`;
-        ctx.textAlign = "left";
-        ctx.fillText(d.label.toUpperCase(), px+7, py-5);
-      });
     }
 
     // ─── Drone trail ────────────────────────────────────────────────────────
@@ -541,20 +452,6 @@ export default function DroneSimulationView({ telemetry, detections, paused = fa
             lastStopRef.current = -1;
           }
 
-          // ── Progressive detection reveal ─────────────────────────────────
-          // Reveal a detection marker when the drone's orbit angle passes
-          // near the angular projection of that zone onto the orbit ellipse.
-          const currentNorm = ((orbitRef.current % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-          detRef.current.forEach((d) => {
-            if (!revealedRef.current.has(d.id)) {
-              const [zx, zy] = getZonePos(d.zone);
-              const zoneAngle = ((Math.atan2((zy - CY) / 120, (zx - CX) / 162)) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
-              let diff = Math.abs(currentNorm - zoneAngle);
-              if (diff > Math.PI) diff = Math.PI * 2 - diff;
-              if (diff < 0.35) revealedRef.current.add(d.id);
-            }
-          });
-
           [dx, dy] = getDroneXY(orbitRef.current);
         }
 
@@ -564,7 +461,6 @@ export default function DroneSimulationView({ telemetry, detections, paused = fa
 
       drawBg();
       drawAircraft();
-      drawMarkers(t);
       drawTrail();
       drawBeam(dx, dy);
       drawDrone(dx, dy, t);

@@ -156,12 +156,16 @@ export default function App() {
     setPage("fleet");
   }
 
-  /** LiveMission fires this when the drone lands normally (Return Home) */
-  function handleMissionComplete(aircraftId: string, detections: LiveDetection[], seconds: number) {
-    const reportData = { detections, seconds };
+  /** LiveMission fires this when the drone lands normally (Return Home).
+   *  The drone only captures images — YOLOv11 runs offline after landing.
+   *  We use the pre-loaded detections from the mission state (set at briefing)
+   *  rather than anything generated during the live flight. */
+  function handleMissionComplete(aircraftId: string, _liveDets: LiveDetection[], seconds: number) {
+    const realDetections = missions[aircraftId]?.detections ?? getDetectionsForAircraft(aircraftId);
+    const reportData = { detections: realDetections, seconds };
     setMissions((prev) => ({
       ...prev,
-      [aircraftId]: { phase: "complete", detections, reportData },
+      [aircraftId]: { ...prev[aircraftId]!, phase: "complete", detections: realDetections, reportData },
     }));
     setSelectedAircraftId(aircraftId);
     setPage("report");

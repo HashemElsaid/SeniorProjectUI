@@ -15,7 +15,7 @@ interface NavItem {
 
 const ALL_NAV: NavItem[] = [
   { page: "fleet", label: "Fleet Overview", icon: "✈", description: "All aircraft" },
-  { page: "live", label: "Live Tracker", icon: "◉", description: "Real-time drone" },
+  { page: "live", label: "Live Tracker", icon: "◉", description: "Flight & telemetry" },
   { page: "detection", label: "Detection View", icon: "⊡", description: "Frame inspection" },
   { page: "review", label: "Results Review", icon: "≡", description: "Findings & export" },
   { page: "history", label: "Flight History", icon: "⏱", description: "Inspection database" },
