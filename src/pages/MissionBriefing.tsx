@@ -19,13 +19,13 @@ interface CheckItem {
 }
 
 const CHECKS: CheckItem[] = [
-  { label: "Drone battery level",   value: "100% — Full charge",       status: "ok" },
-  { label: "Camera system",         value: "4K sensor — Ready",        status: "ok" },
-  { label: "GPS & positioning",     value: "12 satellites locked",     status: "ok" },
-  { label: "Image storage",         value: "64 GB — Available",        status: "ok" },
-  { label: "Comms link",            value: "Encrypted — 28 dBm",       status: "ok" },
-  { label: "AI model (YOLOv11)",    value: "v1.0.0 — Loaded",          status: "ok" },
-  { label: "Aircraft documentation",value: "MSN retrieved",            status: "ok" },
+  { label: "Drone battery level", value: "100% — Full charge", status: "ok" },
+  { label: "Camera system", value: "4K sensor — Ready", status: "ok" },
+  { label: "GPS & positioning", value: "12 satellites locked", status: "ok" },
+  { label: "Image storage", value: "64 GB — Available", status: "ok" },
+  { label: "Comms link", value: "Encrypted — 28 dBm", status: "ok" },
+  { label: "AI model (YOLOv11)", value: "v1.0.0 — Loaded", status: "ok" },
+  { label: "Aircraft documentation", value: "MSN retrieved", status: "ok" },
 ];
 
 export default function MissionBriefing({ aircraft, onLaunch, onCancel }: Props) {
@@ -72,8 +72,8 @@ export default function MissionBriefing({ aircraft, onLaunch, onCancel }: Props)
           </div>
 
           <div style={{ marginTop: spacing.lg, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <InfoBox label="Status"  value={aircraft.status}    tone={aircraft.status === "Active" ? "ok" : "warn"} />
-            <InfoBox label="Model"   value={aircraft.shortModel} tone="neutral" />
+            <InfoBox label="Status" value={aircraft.status} tone={aircraft.status === "Active" ? "ok" : "warn"} />
+            <InfoBox label="Model" value={aircraft.shortModel} tone="neutral" />
             <InfoBox label="Flight Hours" value={aircraft.totalFlightHours.toLocaleString()} tone="neutral" />
             <InfoBox label="Mfg. Year" value={String(aircraft.manufactureYear)} tone="neutral" />
           </div>
@@ -135,7 +135,7 @@ export default function MissionBriefing({ aircraft, onLaunch, onCancel }: Props)
                 fontWeight: 700,
               }}
             >
-              ✓ All systems nominal — aircraft ready for inspection
+              ✓ All systems nominal - aircraft ready for inspection
             </div>
           )}
 

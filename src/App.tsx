@@ -1,17 +1,17 @@
 // src/App.tsx
 import React, { useState } from "react";
-import LandingPage     from "./pages/LandingPage";
-import Login           from "./pages/Login";
-import Register        from "./pages/Register";
+import LandingPage from "./pages/LandingPage";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 import MissionBriefing from "./pages/MissionBriefing";
-import MissionReport   from "./pages/MissionReport";
-import Sidebar         from "./components/Sidebar";
+import MissionReport from "./pages/MissionReport";
+import Sidebar from "./components/Sidebar";
 import type { AppPage } from "./components/Sidebar";
-import LiveMission     from "./pages/LiveMission";
-import DetectionView   from "./pages/DetectionView";
-import ResultsReview   from "./pages/ResultsReview";
-import FleetView       from "./pages/FleetView";
-import FlightHistory   from "./pages/FlightHistory";
+import LiveMission from "./pages/LiveMission";
+import DetectionView from "./pages/DetectionView";
+import ResultsReview from "./pages/ResultsReview";
+import FleetView from "./pages/FleetView";
+import FlightHistory from "./pages/FlightHistory";
 import { colors, radius, spacing, typography } from "./ui/tokens";
 import { FLEET, saveFlightRecord, generateAccessCode } from "./data/fleetStore";
 import type { LiveDetection, HistoricalFinding, FlightRecord } from "./data/fleetStore";
@@ -35,7 +35,7 @@ interface MissionSession {
 }
 
 function defaultPage(role: User["role"]): AppPage {
-  if (role === "Analyst")       return "history";
+  if (role === "Analyst") return "history";
   if (role === "Fleet Manager") return "fleet";
   return "fleet";
 }
@@ -57,7 +57,7 @@ export default function App() {
   const selectedAircraft = FLEET.find((a) => a.id === selectedAircraftId) ?? FLEET[0];
 
   // Derived phase for the currently selected aircraft
-  const currentMission  = missions[selectedAircraftId];
+  const currentMission = missions[selectedAircraftId];
   const missionPhase: MissionPhase = currentMission?.phase ?? "idle";
 
   // ── Pre-auth screens ──────────────────────────────────────────────────────
@@ -104,33 +104,33 @@ export default function App() {
 
   /** Briefing → "Launch Mission" button */
   function handleLaunchDrone() {
-    const flightId   = `fl-live-${Date.now().toString(36).toUpperCase()}`;
+    const flightId = `fl-live-${Date.now().toString(36).toUpperCase()}`;
     const accessCode = generateAccessCode();
-    const today      = new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
 
     // Build findings from the aircraft-specific detections already loaded
     const findings: HistoricalFinding[] = getDetectionsForAircraft(selectedAircraftId).map((d, i) => ({
-      id:         d.id ?? `fnd-${flightId}-${i}`,
+      id: d.id ?? `fnd-${flightId}-${i}`,
       flightId,
       aircraftId: selectedAircraftId,
-      type:       d.label,
-      severity:   d.severity,
+      type: d.label,
+      severity: d.severity,
       confidence: d.confidence,
-      zone:       d.zone,
-      timestamp:  d.timestamp,
-      notes:      `Detected during live inspection. Confidence: ${Math.round(d.confidence * 100)}%.`,
-      resolved:   false,
+      zone: d.zone,
+      timestamp: d.timestamp,
+      notes: `Detected during live inspection. Confidence: ${Math.round(d.confidence * 100)}%.`,
+      resolved: false,
       reoccurrence: false,
     }));
 
     const record: FlightRecord = {
-      id:         flightId,
+      id: flightId,
       aircraftId: selectedAircraftId,
-      date:       today,
-      duration:   "In Progress",
-      pilotName:  user!.name,
-      engineer:   user!.name,
-      status:     "Pending Review",
+      date: today,
+      duration: "In Progress",
+      pilotName: user!.name,
+      engineer: user!.name,
+      status: "Pending Review",
       findings,
       accessCode,
     };
@@ -142,8 +142,8 @@ export default function App() {
       ...prev,
       [selectedAircraftId]: {
         ...prev[selectedAircraftId]!,
-        phase:          "live",
-        liveFlightId:   flightId,
+        phase: "live",
+        liveFlightId: flightId,
         liveAccessCode: accessCode,
       },
     }));
@@ -245,8 +245,8 @@ export default function App() {
                         style={{
                           ...missionTabBtn,
                           borderColor: active ? "rgba(59,130,246,0.50)" : colors.border,
-                          background:  active ? "rgba(59,130,246,0.14)" : "rgba(255,255,255,0.04)",
-                          color:       active ? colors.textPrimary : colors.textSecondary,
+                          background: active ? "rgba(59,130,246,0.14)" : "rgba(255,255,255,0.04)",
+                          color: active ? colors.textPrimary : colors.textSecondary,
                         }}
                       >
                         <span style={livedot} />
