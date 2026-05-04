@@ -49,6 +49,12 @@ export default function Register({ onRegistered, onGoLogin, onBack }: Props) {
     e.preventDefault();
     setError("");
 
+    const e1 = email.trim();
+    if (!e1.endsWith('@aero.com')) {
+      setError("Access restricted to @aero.com staff only.");
+      return;
+    }
+
     if (password !== confirm) {
       setError("Passwords do not match.");
       return;
